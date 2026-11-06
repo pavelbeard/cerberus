@@ -1,111 +1,113 @@
 # cerberus
 
-Librería propia de filtrado de palabras prohibidas, extraída del módulo `banned-words`.
-Dos motores de detección independientes y componibles, expuestos como **singleton** con caché de dos niveles.
+> Spanish version: [README.md](./README.md)
 
-- **No conoce bases de datos, repositorios ni HTTP.** Las listas de palabras prohibidas llegan por `config` o mediante un `loader` externo opcional.
-- **`glin-profanity` es dependencia dura** de este paquete y se reexporta completa en la subruta **`cerberus/glin`** (úsala como si fuera `glin-profanity`).
+Own profanity-filter library, extracted from the `banned-words` module.
+Two independent, composable detection engines, exposed as a **singleton** with two-level caching.
 
-## Instalación
+- **It knows nothing about databases, repositories or HTTP.** Banned-word lists arrive via `config` or through an optional external `loader`.
+- **`glin-profanity` is a hard dependency** of this package and is fully re-exported at the **`cerberus/glin`** subpath (use it as if it were `glin-profanity` itself).
+
+## Installation
 
 ```bash
-npm install cerberus
+npm install cerberus   # glin-profanity already comes as a dependency
 ```
 
-## `cerberus/glin` — glin-profanity desde cerberus
+## `cerberus/glin` — glin-profanity from cerberus
 
-La subruta `cerberus/glin` reexporta la API completa de `glin-profanity` (`Filter`, `ProfanityFilter`, `checkProfanity`, `checkProfanityAsync`, `isWordProfane`, `normalizeLeetspeak`, `normalizeUnicode`, ... y todos sus tipos), además de la factory de strategy `glin` de cerberus:
+The `cerberus/glin` subpath re-exports the complete `glin-profanity` API (`Filter`, `ProfanityFilter`, `checkProfanity`, `checkProfanityAsync`, `isWordProfane`, `normalizeLeetspeak`, `normalizeUnicode`, ... and all its types), plus cerberus' own `glin` strategy factory:
 
 ```typescript
 import { Filter, checkProfanity, isWordProfane, glin } from 'cerberus/glin';
 
 const filter = new Filter({ languages: ['spanish'], detectLeetspeak: true });
 filter.isProfane('f4ck');            // true
-checkProfanity('f u c k');           // helper standalone
+checkProfanity('f u c k');           // standalone helper
 isWordProfane('fuck');               // true
 
-// la misma subruta sirve la strategy para el pipeline compuesto:
+// the same subpath provides the strategy for the composed pipeline:
 initCerberus({ strategies: [levenshtein({ bannedWords: words }), glin({ customWords: words })] });
 ```
 
-## División de territorio (contrato público)
+## Territory split (public contract)
 
-Cada técnica de evasión pertenece a UN motor. La batería de evasiones (`GLIN_ONLY` / `LEVENSHTEIN_ONLY` / `CLEAN`, exportada desde el paquete) lo fija como contrato ejecutable en `tests/battery.spec.ts`.
+Each evasion technique belongs to ONE engine. The evasion battery (`GLIN_ONLY` / `LEVENSHTEIN_ONLY` / `CLEAN`, exported from the package) pins this down as an executable contract in `tests/battery.spec.ts`.
 
-| Técnica de evasión | Dueño |
+| Evasion technique | Owner |
 | --- | --- |
-| Leetspeak estándar (`f4ck`, `@ss`, `5h!t`) | `glin` |
-| Homoglifos Unicode (`fսck`) | `glin` |
-| Caracteres separados (`f u c k`) | `glin` |
-| Sustitución arbitraria de caracteres (`f.ck`, `f.del`) | `levenshtein` |
-| Relleno con ofuscación (`p.llllabra`, colapsado de repetidos) | `levenshtein` |
-| Palabras custom de la entidad | ambas (misma lista compartida) |
+| Standard leetspeak (`f4ck`, `@ss`, `5h!t`) | `glin` |
+| Unicode homoglyphs (`fսck`) | `glin` |
+| Spaced-out letters (`f u c k`) | `glin` |
+| Arbitrary character substitution (`f.ck`, `f.del`) | `levenshtein` |
+| Fill with obfuscation (`p.llllabra`, collapsed repeats) | `levenshtein` |
+| Custom entity words | both (same shared list) |
 
-La división se sostiene con una **misma lista compartida**: el scanner de levenshtein solo se activa en tokens que contienen un carácter de `CHARACTER_LIST` (puntuación/símbolos de ofuscación; dígitos, `@` y homoglifos quedan fuera a propósito), de modo que `f4ck`/`@ss`/`5h1t` nunca entran en levenshtein y `f.ck` nunca lo caza glin. Verificado con tests por composición.
+The split holds with a **single shared list**: the levenshtein scanner only engages on tokens containing a `CHARACTER_LIST` character (obfuscation punctuation/symbols; digits, `@` and homoglyphs are deliberately excluded), so `f4ck`/`@ss`/`5h!t` never reach levenshtein and `f.ck` is never caught by glin. Verified with per-composition tests.
 
-## Uso — singleton
+## Usage — singleton
 
 ```typescript
 import { initCerberus, getCerberus, resetCerberus, levenshtein, glin } from 'cerberus';
 
-// 1) Inicializa UNA vez por proceso
+// 1) Initialize ONCE per process
 initCerberus({
   strategies: [
-    levenshtein({ bannedWords: ['palabra', 'prohibida', 'fidel'] }), // motor propio, primero (rewriter conservador)
-    glin({ customWords: ['palabra', 'prohibida', 'fidel'], language: 'spanish' }), // diccionario + leetspeak después
+    levenshtein({ bannedWords: ['palabra', 'prohibida', 'fidel'] }), // own engine, first (conservative rewriter)
+    glin({ customWords: ['palabra', 'prohibida', 'fidel'], language: 'spanish' }), // dictionary + leetspeak after
   ],
-  // loader: opcional — la app decide cómo cargar palabras para cada loaderOptions
-  // loader: async (loaderOptions) => repo.getBannedWords(loaderOptions),
-  maxCacheSize: 1024, // LRU de resultados (default 1024)
+  // loader: optional — the app decides how to load words per cacheKey
+  // loader: async (cacheKey) => repo.getBannedWords(cacheKey),
+  maxCacheSize: 1024, // results LRU (default 1024)
   cacheResults: true, // default true
 });
 
-// 2) Úsalo desde cualquier sitio
+// 2) Use it from anywhere
 const result = await getCerberus().check('esto es p.llabra prohibida');
 // { processedText: 'esto es **** ****', removed: [{ written: 'p.llabra', matched: 'palabra' }, ...], containsProfanity: true }
 
-// 3) resetCerberus() — SOLO para tests: tira el singleton y ambas cachés
+// 3) resetCerberus() — TESTS ONLY: drops the singleton and both caches
 ```
 
-Semántica del singleton:
+Singleton semantics:
 
-- `initCerberus(config)` es **idempotente** con la misma config (comparación estructural; el `loader` por referencia): devuelve la instancia existente. Con config **distinta lanza error** y exige `resetCerberus()` antes (decisión documentada: error en vez de reinicio silencioso).
-- `getCerberus()` lanza error claro si no está inicializado.
-- `resetCerberus()` limpia los dos niveles de caché (instancias por `loaderOptions` y resultados).
-- No hay forma de crear instancias paralelas desde la API pública.
+- `initCerberus(config)` is **idempotent** with the same config (structural comparison; `loader` by reference): it returns the existing instance. With a **different config it throws** and requires `resetCerberus()` first (documented choice: error instead of silent re-init).
+- `getCerberus()` throws a clear error if not initialized.
+- `resetCerberus()` clears both cache levels (instances per `cacheKey` and results).
+- There is no way to create parallel instances from the public API.
 
-### Config dinámica con `CerberusBuilder` (además del singleton)
+### Dynamic configuration with `CerberusBuilder` (alongside the singleton)
 
-Si la configuración no es fija para todo el proceso — p. ej. un backend donde cada tenant/petición trae su propia config — usa `CerberusBuilder`. Cada `build()` devuelve una instancia **independiente** con sus propias cachés de dos niveles; nada se comparte con el singleton ni entre instancias:
+If the configuration is not fixed for the whole process — e.g. a backend where each tenant/request brings its own config — use `CerberusBuilder`. Each `build()` returns an **independent** instance with its own two-level caches; nothing is shared with the singleton or between instances:
 
 ```typescript
 import { CerberusBuilder, levenshtein, glin } from 'cerberus';
 
-// config 100% dinámica por llamada
+// 100% dynamic config per call
 const instance = new CerberusBuilder(dynamicConfigFromDbOrRequest).build();
-await instance.check('texto', 'opciones-42');
+await instance.check('text', 'options-42');
 
-// builder reutilizable con loader (cada build() es independiente)
+// reusable builder with a loader (each build() is independent)
 const builder = new CerberusBuilder()
   .withStrategies([levenshtein({ bannedWords: [] }), glin({ customWords: [] })])
-  .withLoader(async (loaderOptions) => loadWordsFor(loaderOptions)) // la app decide cómo cargar
+  .withLoader(async (cacheKey) => loadWordsFor(cacheKey)) // the app decides how to load
   .withCacheResults(true)
   .withMaxCacheSize(5000);
 
 const tenantA = builder.build();
 const tenantB = builder.withStrategies([levenshtein({ bannedWords: otherWords })]).build();
-// tenantA y tenantB tienen cachés aisladas y composiciones distintas
+// tenantA and tenantB have isolated caches and different compositions
 ```
 
-Métodos fluidos: `withConfig(partial)`, `withStrategies([...])`, `addStrategy(s)` (el orden es semántico), `withLoader(fn)`, `withCacheResults(bool)`, `withMaxCacheSize(n)`, `getConfig()`, `build()`. `build()` sin strategies lanza error claro.
+Fluent methods: `withConfig(partial)`, `withStrategies([...])`, `addStrategy(s)` (order is semantic), `withLoader(fn)`, `withCacheResults(bool)`, `withMaxCacheSize(n)`, `getConfig()`, `build()`. `build()` without strategies throws a clear error.
 
 | | Singleton | `CerberusBuilder` |
 | --- | --- | --- |
 | API | `initCerberus` / `getCerberus` / `resetCerberus` | `new CerberusBuilder(config?).build()` |
-| Estado | uno por proceso | una instancia independiente por `build()` |
-| Caso de uso | config fija del proceso | config dinámica (backend multi-tenant, por petición) |
+| State | one per process | one independent instance per `build()` |
+| Use case | fixed process config | dynamic config (multi-tenant backend, per request) |
 
-### Las tres composiciones (mismo factory, sin código condicional)
+### The three compositions (same factory, no conditional code)
 
 ```typescript
 // glin only
@@ -114,103 +116,104 @@ initCerberus({ strategies: [glin({ customWords: words, language: 'spanish' })] }
 // levenshtein only
 initCerberus({ strategies: [levenshtein({ bannedWords: words })] });
 
-// ambos (orden por defecto recomendado: levenshtein primero, glin después)
+// both (recommended default order: levenshtein first, glin after)
 initCerberus({ strategies: [levenshtein({ bannedWords: words }), glin({ customWords: words })] });
 ```
 
-`config.strategies` es un array **ordenado**: la salida de cada strategy es la entrada de la siguiente. Si las estrategias se componen, comparten la misma lista (`customWords` de glin = `bannedWords` de levenshtein) y la factoría mergea `removed` con dedupe por `written`.
+`config.strategies` is an **ordered** array: the output of each strategy is the input of the next. When strategies are composed they share the same list (glin's `customWords` = levenshtein's `bannedWords`) and the factory merges `removed` with dedupe by `written`.
 
-### Modo estático vs loader
+### Static mode vs loader
 
 ```typescript
-// Estático: listas en config
+// Static: lists in config
 initCerberus({ strategies: [levenshtein({ bannedWords: words })] });
-await getCerberus().check('texto');                 // sin loaderOptions
+await getCerberus().check('text');                 // no cacheKey
 
-// Con loader: la app carga por loaderOptions; la factoría cachea instancias por loaderOptions
+// With loader: the app loads per cacheKey; the factory caches instances per cacheKey
 initCerberus({ strategies: [levenshtein({ bannedWords: [] }), glin({ customWords: [] })], loader });
-await getCerberus().check('texto', 'opciones-42');   // resuelve words de 'opciones-42'
-getCerberus().invalidate('opciones-42');             // ATÓMICO: tira instancias Y resultados de 'opciones-42'
+await getCerberus().check('text', 'options-42');   // resolves words of 'options-42'
+getCerberus().invalidate('options-42');             // ATOMIC: drops instances AND results of 'options-42'
 ```
 
-## Contrato común de strategy
+## Common strategy contract
 
 ```typescript
 check(text: string): Promise<{ processedText: string; removed: RemovedWord[]; containsProfanity: boolean }>
 // interface RemovedWord { written: string; matched: string }
 ```
 
-- `written` = texto real que escribió el usuario (extraído del diff original/procesado; en levenshtein, span exacto mapeado al token original).
-- `matched` = palabra prohibida contra la que matcheó.
-- Cada strategy es un *rewriter conservador*: solo reescribe lo que puede demostrar.
+- `written` = the real text the user typed (extracted from the original/processed diff; in levenshtein, the exact span mapped back to the original token).
+- `matched` = the banned word it matched against.
+- Each strategy is a *conservative rewriter*: it only rewrites what it can prove.
 
-## Caché (toda en la factoría; los módulos no tienen caché interna)
+## Caching (all in the factory; the modules have no internal cache)
 
-1. **Instancias** por `loaderOptions` (construcción única de strategies; `pendingLoads` deduplica cargas concurrentes).
-2. **Resultados**: LRU con `maxCacheSize`; clave = `generación:scope::idComposición::texto` (dos composiciones distintas nunca colisionan para el mismo texto); deduplica validaciones en curso para la misma clave.
+1. **Instances** per `cacheKey` (built once; `pendingLoads` deduplicates concurrent loads).
+2. **Results**: LRU with `maxCacheSize`; key = `generation:scope::compositionId::text` (two different compositions never collide for the same text); deduplicates in-flight validations for the same key.
 
-`invalidate(loaderOptions)` es atómico: banza una generación nueva y elimina instancias y resultados juntos (los resultados se computaron con la lista vieja). `getStats()` expone `hits/misses/resultCacheSize/instanceCacheSize`.
+`invalidate(cacheKey)` is atomic: it bumps a generation and removes instances and results together (results were computed with the old list). `getStats()` exposes `hits/misses/resultCacheSize/instanceCacheSize`.
 
-## Config de las strategies
+## Strategy configuration
 
 ```typescript
 levenshtein({
-  bannedWords: string[],            // solo listas externas; sin diccionario interno
-  characterList?: string[],         // default CHARACTER_LIST (símbolos de ofuscación; sin dígitos ni @)
+  bannedWords: string[],            // external lists only; no internal dictionary
+  characterList?: string[],         // default CHARACTER_LIST (obfuscation symbols; no digits or @)
   replaceWith?: string,             // default '****'
-  maxDistance?: number,             // default 1 — dial agresividad vs falsos positivos
-  wordBoundary?: boolean,           // default true — isWordBoundary contextual (mata el Scunthorpe: cl@ss pasa limpio)
+  maxDistance?: number,             // default 1 — aggressiveness dial vs false positives
+  wordBoundary?: boolean,           // default true — contextual isWordBoundary (kills Scunthorpe: cl@ss passes clean)
 })
 
 glin({
-  language?: Language,              // default 'english'  (o allLanguages: true)
+  language?: Language,              // default 'english'  (or allLanguages: true)
   customWords?: string[],
   replaceWith?: string,             // default '****'
   leetspeakLevel?: 'basic'|'moderate'|'aggressive', // default 'moderate'
-  wordBoundary?: boolean,           // default true (alias de wordBoundaries de glin-profanity)
+  wordBoundary?: boolean,           // default true (alias of glin-profanity's wordBoundaries)
   detectLeetspeak?: boolean,        // default true
   obfuscation?: ...,                // default 'standard'
-  ...resto de FilterConfig de glin-profanity (passthrough)
+  ...rest of glin-profanity's FilterConfig (passthrough)
 })
 ```
 
-Nota sobre defaults de glin (verificado empíricamente con `glin-profanity` v4): con `wordBoundaries: false` el escaneo fuzzy legado marca falsos positivos (`cl@ss` → `cl****`) y no reescribe evasiones separadas (`f u c k`); con `true` + whitelist integrada de v4, `CLEAN` pasa limpio y todo `GLIN_ONLY` se caza y reescribe. El control de fronteras contextual sobre caracteres de ofuscación vive en `FilterLevenshtein.isWordBoundary`.
+Note on glin defaults (verified empirically with `glin-profanity` v4): with `wordBoundaries: false` the legacy fuzzy scan produces false positives (`cl@ss` → `cl****`) and does not rewrite spaced-out evasions (`f u c k`); with `true` plus v4's built-in whitelist, `CLEAN` passes clean and all of `GLIN_ONLY` is caught and rewritten. Contextual boundary control over obfuscation characters lives in `FilterLevenshtein.isWordBoundary`.
 
-La strategy `glin` es **passthrough**: además del contrato común expone la API completa de `glin-profanity.Filter` (`isProfane`, `checkProfanity`, `matches`, `clearCache`, `getCacheSize`, `getConfig`, `getWordCount`, `checkProfanityWithMinSeverity`) y la instancia cruda en `rawFilter`. Los tipos de glin se reexportan desde el módulo.
+The `glin` strategy is a **passthrough**: besides the common contract it exposes the full `glin-profanity.Filter` API (`isProfane`, `checkProfanity`, `matches`, `clearCache`, `getCacheSize`, `getConfig`, `getWordCount`, `checkProfanityWithMinSeverity`) and the raw instance via `rawFilter`. glin's types are re-exported from the module.
 
-## Batería de evasiones (contrato ejecutable)
+## Evasion battery (executable contract)
 
 ```typescript
 import { GLIN_ONLY, LEVENSHTEIN_ONLY, CLEAN, BATTERY, BATTERY_BANNED_WORDS } from 'cerberus';
 ```
 
-`tests/battery.spec.ts` comprueba por composición: glin-only caza `GLIN_ONLY` y no `LEVENSHTEIN_ONLY`; levenshtein-only al revés; juntos cazan todo; `CLEAN` (`cl@ss`, `llave`, `calle`, `perro`) nunca se marca. (El plan listaba `5h1t`; glin v4 lee `1` como `l` y no lo caza en ningún nivel — se usa `5h!t`, misma técnica leetspeak.)
+`tests/battery.spec.ts` checks per composition: glin-only catches `GLIN_ONLY` and not `LEVENSHTEIN_ONLY`; levenshtein-only the other way around; together they catch everything; `CLEAN` (`cl@ss`, `llave`, `calle`, `perro`) is never flagged. (The plan listed `5h1t`; glin v4 reads `1` as `l` and never catches it at any level — `5h!t` is used instead, same leetspeak technique.)
 
-## Desarrollo
+## Development
 
 ```bash
-npm run build   # tsc -p tsconfig.build.json → dist/ con .d.ts
-npm test        # vitest run (222 tests: migrados + batería + factory/singleton)
+npm run build   # tsc -p tsconfig.build.json → dist/ with .d.ts
+npm test        # vitest run (233 tests: migrated + battery + factory/singleton/builder)
 npm run lint    # tsc --noEmit (strict)
 ```
 
-## Estructura
+## Structure
 
 ```
 cerberus/
 ├── src/
 │   ├── strategies/
-│   │   ├── levenshtein/   # motor propio: FilterLevenshtein (sin caché), levenshteinDistance, normalize, validateNewWord
-│   │   └── glin/          # adaptador passthrough sobre glin-profanity + diff para `written`
-│   ├── factory/           # createCerberus (2 niveles de caché) + singleton init/get/reset
+│   │   ├── levenshtein/   # own engine: FilterLevenshtein (no cache), levenshteinDistance, normalize, validateNewWord
+│   │   └── glin/          # passthrough adapter over glin-profanity + diff for `written`
+│   ├── factory/           # CerberusBuilder, createCerberus (2 cache levels), singleton init/get/reset
 │   ├── battery/           # GLIN_ONLY / LEVENSHTEIN_ONLY / CLEAN
 │   ├── constants/         # CHARACTER_LIST, REPLACE_WITH_DEFAULT, defaults
-│   ├── types/             # tipos globales (CerberusConfig, CerberusInstance, Strategy, RemovedWord, ...)
-│   ├── glin.ts            # subruta cerberus/glin: reexport completo de glin-profanity + factory glin
+│   ├── types/             # global types (CerberusConfig, CerberusInstance, Strategy, RemovedWord, ...)
+│   ├── glin.ts            # subpath cerberus/glin: full glin-profanity re-export + glin factory
 │   └── index.ts
 ├── tests/
 ├── package.json           # name "cerberus", dependencies: glin-profanity, exports: { ".", "./glin" }, files: ["dist"]
 ├── tsconfig.json          # strict
 ├── tsconfig.build.json
-└── README.md
+├── README.md              # Spanish
+└── README.en.md           # English (this file)
 ```
