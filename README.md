@@ -1,6 +1,6 @@
 # cerberus
 
-> Spanish version: [README.md](./README.md)
+> Spanish version: [README.md](./README.es.md)
 
 Own profanity-filter library, extracted from the `banned-words` module.
 Two independent, composable detection engines, exposed as a **singleton** with two-level caching.
