@@ -6,20 +6,20 @@ Own profanity-filter library, extracted from the `banned-words` module.
 Two independent, composable detection engines, exposed as a **singleton** with two-level caching.
 
 - **It knows nothing about databases, repositories or HTTP.** Banned-word lists arrive via `config` or through an optional external `loader`.
-- **`glin-profanity` is a hard dependency** of this package and is fully re-exported at the **`cerberus/glin`** subpath (use it as if it were `glin-profanity` itself).
+- **`glin-profanity` is a hard dependency** of this package and is fully re-exported at the **`@pavelbeard/cerberus/glin`** subpath (use it as if it were `glin-profanity` itself).
 
 ## Installation
 
 ```bash
-npm install cerberus   # glin-profanity already comes as a dependency
+npm install @pavelbeard/cerberus   # glin-profanity already comes as a dependency
 ```
 
-## `cerberus/glin` — glin-profanity from cerberus
+## `@pavelbeard/cerberus/glin` — glin-profanity from cerberus
 
-The `cerberus/glin` subpath re-exports the complete `glin-profanity` API (`Filter`, `ProfanityFilter`, `checkProfanity`, `checkProfanityAsync`, `isWordProfane`, `normalizeLeetspeak`, `normalizeUnicode`, ... and all its types), plus cerberus' own `glin` strategy factory:
+The `@pavelbeard/cerberus/glin` subpath re-exports the complete `glin-profanity` API (`Filter`, `ProfanityFilter`, `checkProfanity`, `checkProfanityAsync`, `isWordProfane`, `normalizeLeetspeak`, `normalizeUnicode`, ... and all its types), plus cerberus' own `glin` strategy factory:
 
 ```typescript
-import { Filter, checkProfanity, isWordProfane, glin } from 'cerberus/glin';
+import { Filter, checkProfanity, isWordProfane, glin } from '@pavelbeard/cerberus/glin';
 
 const filter = new Filter({ languages: ['spanish'], detectLeetspeak: true });
 filter.isProfane('f4ck');            // true
@@ -48,7 +48,7 @@ The split holds with a **single shared list**: the levenshtein scanner only enga
 ## Usage — singleton
 
 ```typescript
-import { initCerberus, getCerberus, resetCerberus, levenshtein, glin } from 'cerberus';
+import { initCerberus, getCerberus, resetCerberus, levenshtein, glin } from '@pavelbeard/cerberus';
 
 // 1) Initialize ONCE per process
 initCerberus({
@@ -81,7 +81,7 @@ Singleton semantics:
 If the configuration is not fixed for the whole process — e.g. a backend where each tenant/request brings its own config — use `CerberusBuilder`. Each `build()` returns an **independent** instance with its own two-level caches; nothing is shared with the singleton or between instances:
 
 ```typescript
-import { CerberusBuilder, levenshtein, glin } from 'cerberus';
+import { CerberusBuilder, levenshtein, glin } from '@pavelbeard/cerberus';
 
 // 100% dynamic config per call
 const instance = new CerberusBuilder(dynamicConfigFromDbOrRequest).build();
@@ -183,7 +183,7 @@ The `glin` strategy is a **passthrough**: besides the common contract it exposes
 ## Evasion battery (executable contract)
 
 ```typescript
-import { GLIN_ONLY, LEVENSHTEIN_ONLY, CLEAN, BATTERY, BATTERY_BANNED_WORDS } from 'cerberus';
+import { GLIN_ONLY, LEVENSHTEIN_ONLY, CLEAN, BATTERY, BATTERY_BANNED_WORDS } from '@pavelbeard/cerberus';
 ```
 
 `tests/battery.spec.ts` checks per composition: glin-only catches `GLIN_ONLY` and not `LEVENSHTEIN_ONLY`; levenshtein-only the other way around; together they catch everything; `CLEAN` (`cl@ss`, `llave`, `calle`, `perro`) is never flagged. (The plan listed `5h1t`; glin v4 reads `1` as `l` and never catches it at any level — `5h!t` is used instead, same leetspeak technique.)
@@ -208,10 +208,10 @@ cerberus/
 │   ├── battery/           # GLIN_ONLY / LEVENSHTEIN_ONLY / CLEAN
 │   ├── constants/         # CHARACTER_LIST, REPLACE_WITH_DEFAULT, defaults
 │   ├── types/             # global types (CerberusConfig, CerberusInstance, Strategy, RemovedWord, ...)
-│   ├── glin.ts            # subpath cerberus/glin: full glin-profanity re-export + glin factory
+│   ├── glin.ts            # subpath @pavelbeard/cerberus/glin: full glin-profanity re-export + glin factory
 │   └── index.ts
 ├── tests/
-├── package.json           # name "cerberus", dependencies: glin-profanity, exports: { ".", "./glin" }, files: ["dist"]
+├── package.json           # name "@pavelbeard/cerberus", dependencies: glin-profanity, exports: { ".", "./glin" }, files: ["dist"]
 ├── tsconfig.json          # strict
 ├── tsconfig.build.json
 ├── README.md              # Spanish
