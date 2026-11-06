@@ -1,0 +1,49 @@
+{
+  "name": "cerberus",
+  "version": "1.0.0",
+  "description": "Composable profanity-filter library: own levenshtein engine plus a glin-profanity adapter, exposed as a singleton factory with two-level caching. No database, no HTTP — word lists come from config or an external loader.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./glin": {
+      "types": "./dist/glin.d.ts",
+      "default": "./dist/glin.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "glin-profanity": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  },
+  "keywords": [
+    "profanity",
+    "filter",
+    "levenshtein",
+    "glin-profanity",
+    "moderation",
+    "obfuscation"
+  ]
+}
