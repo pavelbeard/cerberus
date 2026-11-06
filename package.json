@@ -1,8 +1,11 @@
 {
-  "name": "cerberus",
+  "name": "@pavelbeard/cerberus",
   "version": "1.0.0",
   "description": "Composable profanity-filter library: own levenshtein engine plus a glin-profanity adapter, exposed as a singleton factory with two-level caching. No database, no HTTP — word lists come from config or an external loader.",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
